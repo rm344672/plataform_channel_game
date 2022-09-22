@@ -5,6 +5,7 @@ import 'package:plataform_channel_game/constants/colors.dart';
 import 'package:plataform_channel_game/constants/styles.dart';
 import 'package:plataform_channel_game/models/creator.dart';
 import 'package:flutter/services.dart';
+import 'package:plataform_channel_game/models/message.dart';
 
 class GameWidget extends StatefulWidget {
   const GameWidget({Key? key}) : super(key: key);
@@ -15,7 +16,7 @@ class GameWidget extends StatefulWidget {
 
 class _GameWidgetState extends State<GameWidget> {
 
-  static const platform = const MethodChannel('game/exchange');
+  static const platform = MethodChannel('game/exchange');
 
   Creator? creator;
   bool minhaVez = false;
@@ -25,6 +26,33 @@ class _GameWidgetState extends State<GameWidget> {
     [0, 0, 0],
     [0, 0, 0]
   ];
+
+  @override
+  void initState(){
+    super.initState();
+    configurePubNub();
+  }
+
+  void configurePubNub(){
+    platform.setMethodCallHandler((call) async {
+      String action = call.method;
+      String arguments = call.arguments.toString();
+      List<String> parts = arguments.split("|");
+
+      if(action == "sendAction"){
+        ExchangeMessage message =
+         ExchangeMessage(parts[0], int.parse(parts[1]), int.parse(parts[2]));
+
+        if(message.user == (creator!.creator ? "p2" : "p1")){
+          setState(() {
+            minhaVez = true;
+            cells[message.x][message.y] = 2;
+          });
+          checkWinner();
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -160,10 +188,8 @@ class _GameWidgetState extends State<GameWidget> {
       if(result){
        return true; 
       }
-      return false;
-    }catch(e){
-      return false;
-    }
+    }catch(e){}
+    return false;
   }
 
   Widget getCell(int x, int y) => InkWell(
@@ -199,7 +225,109 @@ class _GameWidgetState extends State<GameWidget> {
   }
 
   void checkWinner(){
+    bool youWin = false;
+    bool enemyWin = false;
 
+    //rows
+    if (cells[0][0] == 1 && cells[0][1] == 1 && cells[0][2] == 1) {
+      youWin = true;
+    } else if (cells[0][0] == 2 && cells[0][1] == 2 && cells[0][2] == 2) {
+      enemyWin = true;
+    }
+
+    if (cells[1][0] == 1 && cells[1][1] == 1 && cells[1][2] == 1) {
+      youWin = true;
+    } else if (cells[1][0] == 2 && cells[1][1] == 2 && cells[1][2] == 2) {
+      enemyWin = true;
+    }
+
+    if (cells[2][0] == 1 && cells[2][1] == 1 && cells[2][2] == 1) {
+      youWin = true;
+    } else if (cells[2][0] == 2 && cells[2][1] == 2 && cells[2][2] == 2) {
+      enemyWin = true;
+    }
+
+    //columns
+    if (cells[0][0] == 1 && cells[1][0] == 1 && cells[2][0] == 1) {
+      youWin = true;
+    } else if (cells[0][0] == 2 && cells[1][0] == 2 && cells[2][0] == 2) {
+      enemyWin = true;
+    }
+
+    if (cells[0][1] == 1 && cells[1][1] == 1 && cells[2][1] == 1) {
+      youWin = true;
+    } else if (cells[0][1] == 2 && cells[1][1] == 2 && cells[2][1] == 2) {
+      enemyWin = true;
+    }
+
+    if (cells[0][2] == 1 && cells[1][2] == 1 && cells[2][2] == 1) {
+      youWin = true;
+    } else if (cells[0][2] == 2 && cells[1][2] == 2 && cells[2][2] == 2) {
+      enemyWin = true;
+    }
+
+    //diagonal
+    if (cells[0][0] == 1 && cells[1][1] == 1 && cells[2][2] == 1) {
+      youWin = true;
+    } else if (cells[0][0] == 2 && cells[1][1] == 2 && cells[2][2] == 2) {
+      enemyWin = true;
+    }
+
+    if (cells[2][0] == 1 && cells[1][1] == 1 && cells[0][2] == 1) {
+      youWin = true;
+    } else if (cells[2][0] == 2 && cells[1][1] == 2 && cells[0][2] == 2) {
+      enemyWin = true;
+    }
+
+    if(youWin){
+      _showFinishGame(true);
+    }else if (enemyWin){
+      _showFinishGame(false);
+    }
+    
+    bool todasJogadasFeitas = true;
+    for (var rows in cells) {
+      for (var cell in rows) {
+        if (cell == 0) {
+          todasJogadasFeitas = false;
+          break;
+        }
+      }
+    }
+
+    if(todasJogadasFeitas){
+      _showFinishGame(null);
+    }
+  }
+
+  void _showFinishGame(bool? youWin){
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context){
+        return AlertDialog(
+          title: const Text("Digite a mensagem para enviar"),
+          content: Text(youWin == true ? "Você ganhou" : youWin == null ? "empate" : "Você perdeu"),
+          actions: [
+            ElevatedButton(
+              child: const Text("Fechar"),
+              onPressed: (){
+                Navigator.of(context).pop();
+                setState(() {
+                  creator = null;
+                  minhaVez = false;
+                  cells = [
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 0]
+                  ];
+                });
+              },
+            )
+          ],
+        );
+      }
+    );
   }
 
   void _sendMessage() async {
